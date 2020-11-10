@@ -1,7 +1,22 @@
+/*
+ * Copyright 2020 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.example.noframeworks;
 
 import static org.awaitility.Awaitility.await;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.api.core.ApiFuture;
@@ -33,15 +48,13 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.PubSubEmulatorContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
-public class PubSubTests {
+public class PubSubIntegrationTests {
   private static final String PROJECT_ID = "test-project";
   private static final String TOPIC_NAME =
       String.format("projects/%s/topics/%s", PROJECT_ID, "test-topic");
@@ -63,11 +76,19 @@ public class PubSubTests {
    */
   @BeforeEach
   void setup() throws IOException {
+    // Creaate a gRPC channel that connects to the emulator host/port.
+    // Production connections are over HTTPS, but emulator connection is plaintext.
     this.emulatorChannel =
         ManagedChannelBuilder.forTarget(emulator.getEmulatorEndpoint()).usePlaintext().build();
+
+    // Create a channel provider that holds the channel. Channel Provider is used everywhere else.
     this.emulatorChannelProvider =
         FixedTransportChannelProvider.create(GrpcTransportChannel.create(emulatorChannel));
 
+    // When connecting, in addition to the emulator channel provider, also use
+    // NoCredentialsProvider.
+    // Otherwise, your application default credentials will be sent and it may not be accepted
+    // by the emulator. Moreover, the connection is over plaintext - don't send real credentials.
     TopicAdminClient topicAdminClient =
         TopicAdminClient.create(
             TopicAdminSettings.newBuilder()
@@ -85,12 +106,15 @@ public class PubSubTests {
     subscriptionAdminClient.createSubscription(
         SUBSCRIPTION_NAME, TOPIC_NAME, PushConfig.newBuilder().build(), 10);
 
+    // Always shutdown the clients when you are done.
+    // In some cases, you have to wait for shutdown to complete.
     topicAdminClient.shutdown();
     subscriptionAdminClient.shutdown();
   }
 
   @Test
   public void testSender() throws IOException, ExecutionException, InterruptedException {
+    // Create a Publisher that uses the emulator channel provider.
     Publisher publisher =
         Publisher.newBuilder(TOPIC_NAME)
             .setChannelProvider(emulatorChannelProvider)
@@ -101,8 +125,10 @@ public class PubSubTests {
     ApiFuture<String> future = sender.send("hello!");
     String id = future.get();
 
+    // Always shutdown gracefully.
     publisher.shutdown();
 
+    // Create a subscriber to verify that the message was sent and received by this subscriber.
     try (GrpcSubscriberStub subscriberStub =
         GrpcSubscriberStub.create(
             SubscriberStubSettings.newBuilder()
@@ -110,18 +136,24 @@ public class PubSubTests {
                 .setCredentialsProvider(NoCredentialsProvider.create())
                 .build())) {
 
+      // Use simple pull mechanism to see what's in the subscription.
       PullResponse response =
           subscriberStub
               .pullCallable()
               .call(
                   PullRequest.newBuilder()
+                      // pull more than you send, just in case there are other issues.
                       .setMaxMessages(10)
                       .setSubscription(SUBSCRIPTION_NAME)
                       .build());
 
+      // Assert you've received 1 message with the correct information.
       assertEquals(1, response.getReceivedMessagesCount());
+      assertEquals("hello!", response.getReceivedMessages(0).getMessage().getData().toStringUtf8());
       assertEquals(id, response.getReceivedMessages(0).getMessage().getMessageId());
 
+      // Acknowledge the message, otherwise it'll still be in the subscription and it can
+      // mess up subsequent tests.
       subscriberStub
           .acknowledgeCallable()
           .call(
@@ -143,6 +175,7 @@ public class PubSubTests {
     PubSubSender sender = new PubSubSender(publisher);
     ApiFuture<String> future = sender.send("hello!");
     String id = future.get();
+    publisher.shutdown();
 
     List<String> ids = Collections.synchronizedList(new LinkedList<>());
 
@@ -156,7 +189,11 @@ public class PubSubTests {
             NoCredentialsProvider.create());
     worker.start();
 
-    await().until(() -> ids.size(), equalTo(1));
+    // Use awaitility to wait until at least a message has been received.
+    await().until(() -> ids.size(), greaterThan(0));
+
+    // Assert the content of the message
+    assertEquals(1, ids.size());
     assertEquals(id, ids.get(0));
 
     worker.stop();
@@ -164,7 +201,8 @@ public class PubSubTests {
 
   @AfterEach
   public void teardown() throws IOException {
-    // Drain all messages
+    // In case there are issues with the test, make sure all unprocessed messages are drained.
+    // So that those messages don't get processed in subsequent tests.
     try (GrpcSubscriberStub subscriberStub =
         GrpcSubscriberStub.create(
             SubscriberStubSettings.newBuilder()
@@ -181,6 +219,7 @@ public class PubSubTests {
                       .setSubscription(SUBSCRIPTION_NAME)
                       .build());
 
+      // Ack all remanining messages.
       if (response.getReceivedMessagesCount() > 0) {
         Builder ackBuilder = AcknowledgeRequest.newBuilder();
         ackBuilder.setSubscription(SUBSCRIPTION_NAME);
@@ -191,7 +230,7 @@ public class PubSubTests {
       }
     }
 
-    // Shut down the channel
+    // Shutdown the channel
     emulatorChannel.shutdown();
     while (!emulatorChannel.isTerminated()) {
       try {
