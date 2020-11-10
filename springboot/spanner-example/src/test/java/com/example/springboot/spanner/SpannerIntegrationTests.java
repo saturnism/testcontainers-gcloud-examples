@@ -73,8 +73,6 @@ public class SpannerIntegrationTests {
 
     @Override
     public void initialize(ConfigurableApplicationContext ctx) {
-      logger.info("gRPC Endpoint: " + spannerEmulator.getEmulatorGrpcEndpoint());
-      logger.info("HTTP Endpoint: " + spannerEmulator.getEmulatorHttpEndpoint());
       TestPropertyValues.of(
               "spring.cloud.gcp.spanner.emulator-host=" + spannerEmulator.getEmulatorGrpcEndpoint())
           .applyTo(ctx);
