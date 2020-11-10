@@ -26,8 +26,8 @@ public class PubSubSender {
   private final String topicName;
   private final PubSubPublisherTemplate publisherTemplate;
 
-  public PubSubSender(@Value("${app.topic-name}") String topicName,
-      PubSubPublisherTemplate publisherTemplate) {
+  public PubSubSender(
+      @Value("${app.topic-name}") String topicName, PubSubPublisherTemplate publisherTemplate) {
     this.publisherTemplate = publisherTemplate;
 
     Assert.hasText(topicName, "topicName cannot be null");

@@ -22,8 +22,6 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gcp.pubsub.core.subscriber.PubSubSubscriberTemplate;
-import org.springframework.cloud.gcp.pubsub.support.BasicAcknowledgeablePubsubMessage;
-import org.springframework.stereotype.Service;
 
 public class PubSubWorker {
   private static final Logger logger = LoggerFactory.getLogger(PubSubWorker.class);
