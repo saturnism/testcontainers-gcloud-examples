@@ -62,7 +62,7 @@ public class PubSubIntegrationTests {
       String.format("projects/%s/subscriptions/%s", PROJECT_ID, "test-subscription");
 
   @Container
-  PubSubEmulatorContainer emulator =
+  private static final PubSubEmulatorContainer pubsubEmulator =
       new PubSubEmulatorContainer(
           DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:317.0.0-emulators"));
 
@@ -79,7 +79,7 @@ public class PubSubIntegrationTests {
     // Creaate a gRPC channel that connects to the emulator host/port.
     // Production connections are over HTTPS, but emulator connection is plaintext.
     this.emulatorChannel =
-        ManagedChannelBuilder.forTarget(emulator.getEmulatorEndpoint()).usePlaintext().build();
+        ManagedChannelBuilder.forTarget(pubsubEmulator.getEmulatorEndpoint()).usePlaintext().build();
 
     // Create a channel provider that holds the channel. Channel Provider is used everywhere else.
     this.emulatorChannelProvider =
