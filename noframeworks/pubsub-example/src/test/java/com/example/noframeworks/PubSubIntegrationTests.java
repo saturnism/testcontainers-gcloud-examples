@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PubSubEmulatorContainer;
@@ -66,23 +67,23 @@ public class PubSubIntegrationTests {
       new PubSubEmulatorContainer(
           DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:317.0.0-emulators"));
 
-  ManagedChannel emulatorChannel;
-  TransportChannelProvider emulatorChannelProvider;
+  private static ManagedChannel emulatorChannel;
+  private static TransportChannelProvider emulatorChannelProvider;
 
   /**
    * Bootstrap the emulator with topic and subscriptions.
    *
    * @throws IOException
    */
-  @BeforeEach
-  void setup() throws IOException {
-    // Creaate a gRPC channel that connects to the emulator host/port.
+  @BeforeAll
+  static void setup() throws IOException {
+    // Create a gRPC channel that connects to the emulator host/port.
     // Production connections are over HTTPS, but emulator connection is plaintext.
-    this.emulatorChannel =
+    emulatorChannel =
         ManagedChannelBuilder.forTarget(pubsubEmulator.getEmulatorEndpoint()).usePlaintext().build();
 
     // Create a channel provider that holds the channel. Channel Provider is used everywhere else.
-    this.emulatorChannelProvider =
+    emulatorChannelProvider =
         FixedTransportChannelProvider.create(GrpcTransportChannel.create(emulatorChannel));
 
     // When connecting, in addition to the emulator channel provider, also use
@@ -227,16 +228,6 @@ public class PubSubIntegrationTests {
           ackBuilder.addAckIds(msg.getAckId());
         }
         subscriberStub.acknowledgeCallable().call(ackBuilder.build());
-      }
-    }
-
-    // Shutdown the channel
-    emulatorChannel.shutdown();
-    while (!emulatorChannel.isTerminated()) {
-      try {
-        emulatorChannel.awaitTermination(1, TimeUnit.SECONDS);
-      } catch (InterruptedException e) {
-        // do nothing
       }
     }
   }
