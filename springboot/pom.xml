@@ -15,6 +15,7 @@
   <modules>
     <module>pubsub-example</module>
     <module>firestore-example</module>
+    <module>spanner-example</module>
   </modules>
 
 
