@@ -113,7 +113,7 @@ public class PubSubIntegrationTests {
   }
 
   @Test
-  public void testSender() throws IOException, ExecutionException, InterruptedException {
+  void testSender() throws IOException, ExecutionException, InterruptedException {
     // Create a Publisher that uses the emulator channel provider.
     Publisher publisher =
         Publisher.newBuilder(TOPIC_NAME)
@@ -165,7 +165,7 @@ public class PubSubIntegrationTests {
   }
 
   @Test
-  public void testWorker() throws IOException, ExecutionException, InterruptedException {
+  void testWorker() throws IOException, ExecutionException, InterruptedException {
     Publisher publisher =
         Publisher.newBuilder(TOPIC_NAME)
             .setChannelProvider(emulatorChannelProvider)
@@ -200,7 +200,7 @@ public class PubSubIntegrationTests {
   }
 
   @AfterEach
-  public void teardown() throws IOException {
+  void teardown() throws IOException {
     // In case there are issues with the test, make sure all unprocessed messages are drained.
     // So that those messages don't get processed in subsequent tests.
     try (GrpcSubscriberStub subscriberStub =

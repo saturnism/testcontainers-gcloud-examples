@@ -22,11 +22,11 @@ import org.springframework.util.Assert;
 import org.springframework.util.concurrent.ListenableFuture;
 
 @Service
-public class PubsubService {
+public class PubSubSender {
   private final String topicName;
   private final PubSubPublisherTemplate publisherTemplate;
 
-  public PubsubService(@Value("${app.topic-name}") String topicName,
+  public PubSubSender(@Value("${app.topic-name}") String topicName,
       PubSubPublisherTemplate publisherTemplate) {
     this.publisherTemplate = publisherTemplate;
 

@@ -13,60 +13,50 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.example.noframeworks;
+package com.example.springboot.pubsub;
 
 import com.google.api.core.ApiService;
-import com.google.api.gax.core.CredentialsProvider;
-import com.google.api.gax.rpc.TransportChannelProvider;
-import com.google.cloud.pubsub.v1.AckReplyConsumer;
 import com.google.cloud.pubsub.v1.Subscriber;
 import com.google.pubsub.v1.PubsubMessage;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cloud.gcp.pubsub.core.subscriber.PubSubSubscriberTemplate;
+import org.springframework.cloud.gcp.pubsub.support.BasicAcknowledgeablePubsubMessage;
+import org.springframework.stereotype.Service;
 
 public class PubSubWorker {
   private static final Logger logger = LoggerFactory.getLogger(PubSubWorker.class);
-  private final Subscriber subscriber;
+
+  private final String subscription;
+  private final PubSubSubscriberTemplate subscriberTemplate;
   private final Consumer<PubsubMessage> listener;
+  private volatile Subscriber subscriber;
 
-  public PubSubWorker(String subscriptionName) {
-    this.listener = null;
-    this.subscriber =
-        Subscriber.newBuilder(
-                subscriptionName,
-                (msg, reply) -> {
-                  process(msg, reply);
-                })
-            .build();
+  public PubSubWorker(String subscription, PubSubSubscriberTemplate subscriberTemplate) {
+    this(subscription, subscriberTemplate, null);
   }
 
-  PubSubWorker(String subscriptionName,
-      Consumer<PubsubMessage> listener,
-      TransportChannelProvider channelProvider,
-      CredentialsProvider credentialsProvider) {
+  PubSubWorker(
+      String subscription,
+      PubSubSubscriberTemplate subscriberTemplate,
+      Consumer<PubsubMessage> listener) {
+    this.subscription = subscription;
+    this.subscriberTemplate = subscriberTemplate;
     this.listener = listener;
-    this.subscriber =
-        Subscriber.newBuilder(
-                subscriptionName,
-                (msg, reply) -> {
-                  process(msg, reply);
-                })
-            .setChannelProvider(channelProvider)
-            .setCredentialsProvider(credentialsProvider)
-            .build();
-  }
-
-  protected void process(PubsubMessage msg, AckReplyConsumer reply) {
-    reply.ack();
-
-    if (listener != null) {
-      listener.accept(msg);
-    }
   }
 
   public void start() {
-    subscriber.startAsync();
+    this.subscriber =
+        subscriberTemplate.subscribe(
+            subscription,
+            (msg) -> {
+              msg.ack();
+
+              if (listener != null) {
+                listener.accept(msg.getPubsubMessage());
+              }
+            });
   }
 
   public void stop() {

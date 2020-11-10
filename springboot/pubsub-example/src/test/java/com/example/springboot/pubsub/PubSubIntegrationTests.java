@@ -21,9 +21,12 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.example.springboot.pubsub.PubsubServiceIntegrationTests.Initializer;
+import com.example.springboot.pubsub.PubSubIntegrationTests.Initializer;
 import com.google.api.gax.core.CredentialsProvider;
 import com.google.api.gax.core.NoCredentialsProvider;
+import com.google.pubsub.v1.PubsubMessage;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +41,7 @@ import org.springframework.cloud.gcp.autoconfigure.core.GcpContextAutoConfigurat
 import org.springframework.cloud.gcp.autoconfigure.pubsub.GcpPubSubAutoConfiguration;
 import org.springframework.cloud.gcp.autoconfigure.pubsub.GcpPubSubEmulatorAutoConfiguration;
 import org.springframework.cloud.gcp.pubsub.PubSubAdmin;
+import org.springframework.cloud.gcp.pubsub.core.publisher.PubSubPublisherTemplate;
 import org.springframework.cloud.gcp.pubsub.core.subscriber.PubSubSubscriberTemplate;
 import org.springframework.cloud.gcp.pubsub.support.AcknowledgeablePubsubMessage;
 import org.springframework.context.ApplicationContextInitializer;
@@ -55,7 +59,7 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 @ActiveProfiles("test")
 @ContextConfiguration(initializers = Initializer.class)
-public class PubsubServiceIntegrationTests {
+public class PubSubIntegrationTests {
   @Container
   private static final PubSubEmulatorContainer pubsubEmulator =
       new PubSubEmulatorContainer(
@@ -72,7 +76,8 @@ public class PubsubServiceIntegrationTests {
       ApplicationContextRunner runner =
           new ApplicationContextRunner()
               // By default, autoconfiguration will initialize application default credentials.
-              // For testing purposes, don't use any credentials. Bootstrap w/ NoCredentailsProvider.
+              // For testing purposes, don't use any credentials. Bootstrap w/
+              // NoCredentailsProvider.
               .withBean(
                   "googleCredentials",
                   CredentialsProvider.class,
@@ -113,19 +118,20 @@ public class PubsubServiceIntegrationTests {
     }
   }
 
-  @Autowired PubsubService pubsubService;
+  @Autowired PubSubSender sender;
+
   @Autowired PubSubSubscriberTemplate subscriberTemplate;
+  @Autowired PubSubPublisherTemplate publisherTemplate;
 
   @Test
   void testSend() throws ExecutionException, InterruptedException {
-    ListenableFuture<String> future = pubsubService.send("hello!");
-    String id = future.get();
+    ListenableFuture<String> future = sender.send("hello!");
 
     List<AcknowledgeablePubsubMessage> msgs =
         await().until(() -> subscriberTemplate.pull("test-subscription", 10, true), not(empty()));
 
     assertEquals(1, msgs.size());
-    assertEquals(id, msgs.get(0).getPubsubMessage().getMessageId());
+    assertEquals(future.get(), msgs.get(0).getPubsubMessage().getMessageId());
     assertEquals("hello!", msgs.get(0).getPubsubMessage().getData().toStringUtf8());
 
     for (AcknowledgeablePubsubMessage msg : msgs) {
@@ -133,12 +139,28 @@ public class PubsubServiceIntegrationTests {
     }
   }
 
+  @Test
+  void testWorker() throws ExecutionException, InterruptedException {
+    ListenableFuture<String> future = publisherTemplate.publish("test-topic", "hi!");
+
+    List<PubsubMessage> messages = Collections.synchronizedList(new LinkedList<>());
+    PubSubWorker worker = new PubSubWorker("test-subscription", subscriberTemplate, (msg) -> {
+      messages.add(msg);
+    });
+    worker.start();
+
+    await().until(() -> messages, not(empty()));
+    assertEquals(1, messages.size());
+    assertEquals(future.get(), messages.get(0).getMessageId());
+    assertEquals("hi!", messages.get(0).getData().toStringUtf8());
+
+    worker.stop();
+  }
+
   @AfterEach
   void teardown() {
-    // Drain any messages that are still in the subscription so that they don't interfere with subsequent tests.
-    await()
-        .until(
-            () -> subscriberTemplate.pullAndAck("test-subscription", 1000, true),
-            hasSize(0));
+    // Drain any messages that are still in the subscription so that they don't interfere with
+    // subsequent tests.
+    await().until(() -> subscriberTemplate.pullAndAck("test-subscription", 1000, true), hasSize(0));
   }
 }
