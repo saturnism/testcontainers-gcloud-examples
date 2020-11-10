@@ -109,7 +109,7 @@ public class PubSubIntegrationTests {
   }
 
   // By default, autoconfiguration will initialize application default credentials.
-  // For testing purposes, don't use any credentials. Bootstrap w/ NoCredentailsProvider.
+  // For testing purposes, don't use any credentials. Bootstrap w/ NoCredentialsProvider.
   @TestConfiguration
   static class PubSubEmulatorConfiguration {
     @Bean
