@@ -49,6 +49,10 @@ public class DatastoreIntegrationTests {
       new FirestoreEmulatorContainer(
           DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:317.0.0-emulators"));
 
+  // Unlike any other emulators that can use NoCredentials, Firestore emulator requires a FakeCredentials
+  // with additional fake Authorization header.  The FakeCredentials that's used by Firestore client
+  // library internally is not instantiatable from outside of a Builder instance. So, we have to
+  // create our own FakeCredentials instead...
   public static class FakeCredentials extends Credentials {
     private final Map<String, List<String>> HEADERS =
         ImmutableMap.of("Authorization", Arrays.asList("Bearer owner"));
@@ -81,6 +85,7 @@ public class DatastoreIntegrationTests {
 
   @BeforeEach
   void setup() throws IOException {
+    // Configure Firestore client library to point to the emulator endpoint.
     FirestoreOptions options =
         FirestoreOptions.newBuilder()
             .setProjectId(PROJECT_ID)
