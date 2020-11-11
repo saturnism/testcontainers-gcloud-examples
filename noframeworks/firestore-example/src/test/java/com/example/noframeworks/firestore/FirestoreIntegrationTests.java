@@ -41,7 +41,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
-public class DatastoreIntegrationTests {
+public class FirestoreIntegrationTests {
   private static final String PROJECT_ID = "test-project";
 
   @Container
