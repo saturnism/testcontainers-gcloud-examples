@@ -14,6 +14,7 @@
 
   <modules>
     <module>pubsub-example</module>
+    <module>datastore-example</module>
   </modules>
 
   <properties>
