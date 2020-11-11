@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.example.noframeworks.pubsub.datastore.Person;
 import com.example.noframeworks.pubsub.datastore.PersonDao;
 import com.google.cloud.NoCredentials;
-import com.google.cloud.ServiceOptions;
 import com.google.cloud.datastore.Datastore;
 import com.google.cloud.datastore.DatastoreOptions;
 import java.io.IOException;
@@ -51,8 +50,7 @@ public class DatastoreIntegrationTests {
             // host requires "http://" prefix for the emulator
             .setHost("http://" + datastoreEmulator.getEmulatorEndpoint())
             .setCredentials(NoCredentials.getInstance())
-            .setRetrySettings(ServiceOptions.getNoRetrySettings())
-            .setProjectId("test-project")
+            .setProjectId(PROJECT_ID)
             .build();
 
     this.datastore = options.getService();
