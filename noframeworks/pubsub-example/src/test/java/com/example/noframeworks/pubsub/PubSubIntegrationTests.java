@@ -44,6 +44,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -109,7 +110,6 @@ public class PubSubIntegrationTests {
     // In some cases, you have to wait for shutdown to complete.
     topicAdminClient.shutdown();
     subscriptionAdminClient.shutdown();
-    emulatorChannel.shutdown();
   }
 
   @Test
@@ -229,5 +229,10 @@ public class PubSubIntegrationTests {
         subscriberStub.acknowledgeCallable().call(ackBuilder.build());
       }
     }
+  }
+
+  @AfterAll
+  static void shutdown() {
+    emulatorChannel.shutdown();
   }
 }
