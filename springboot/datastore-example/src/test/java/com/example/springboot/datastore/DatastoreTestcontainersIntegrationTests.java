@@ -19,46 +19,35 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.example.springboot.datastore.DatastoreTestcontainersIntegrationTests.Initializer;
 import com.google.api.gax.core.CredentialsProvider;
 import com.google.api.gax.core.NoCredentialsProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.util.TestPropertyValues;
-import org.springframework.context.ApplicationContextInitializer;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.DatastoreEmulatorContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-// Most Datastore tests w/ Spring Cloud GCP do not require Testcontainers.
+// Datastore tests w/ Spring Cloud GCP do not require Testcontainers.
 // However, if you are curious how it works w/ Testcontainers, see this example in detail.
 @SpringBootTest
 @Testcontainers
 @ActiveProfiles("testcontainers")
-@ContextConfiguration(initializers = Initializer.class)
 public class DatastoreTestcontainersIntegrationTests {
   @Container
   private static final DatastoreEmulatorContainer datastoreEmulator =
       new DatastoreEmulatorContainer(
           DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:317.0.0-emulators"));
 
-  static class Initializer
-      implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-    @Override
-    public void initialize(ConfigurableApplicationContext ctx) {
-      // The host here requires "http://" prefix.
-      TestPropertyValues.of(
-              "spring.cloud.gcp.datastore.host=http://" + datastoreEmulator.getEmulatorEndpoint())
-          .applyTo(ctx);
-    }
+  @DynamicPropertySource
+  static void emulatorProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.cloud.gcp.datastore.host", () -> "http://" + datastoreEmulator.getEmulatorEndpoint());
   }
 
   @TestConfiguration

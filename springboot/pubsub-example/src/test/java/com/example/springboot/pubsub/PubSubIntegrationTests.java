@@ -21,34 +21,36 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.example.springboot.pubsub.PubSubIntegrationTests.Initializer;
 import com.google.api.gax.core.CredentialsProvider;
 import com.google.api.gax.core.NoCredentialsProvider;
+import com.google.api.gax.grpc.GrpcTransportChannel;
+import com.google.api.gax.rpc.FixedTransportChannelProvider;
+import com.google.api.gax.rpc.TransportChannelProvider;
+import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
+import com.google.cloud.pubsub.v1.SubscriptionAdminSettings;
+import com.google.cloud.pubsub.v1.TopicAdminClient;
+import com.google.cloud.pubsub.v1.TopicAdminSettings;
 import com.google.pubsub.v1.PubsubMessage;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.boot.test.util.TestPropertyValues;
-import org.springframework.cloud.gcp.autoconfigure.core.GcpContextAutoConfiguration;
-import org.springframework.cloud.gcp.autoconfigure.pubsub.GcpPubSubAutoConfiguration;
-import org.springframework.cloud.gcp.autoconfigure.pubsub.GcpPubSubEmulatorAutoConfiguration;
 import org.springframework.cloud.gcp.pubsub.PubSubAdmin;
 import org.springframework.cloud.gcp.pubsub.core.publisher.PubSubPublisherTemplate;
 import org.springframework.cloud.gcp.pubsub.core.subscriber.PubSubSubscriberTemplate;
 import org.springframework.cloud.gcp.pubsub.support.AcknowledgeablePubsubMessage;
-import org.springframework.context.ApplicationContextInitializer;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.util.concurrent.ListenableFuture;
 import org.testcontainers.containers.PubSubEmulatorContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -58,54 +60,48 @@ import org.testcontainers.utility.DockerImageName;
 @SpringBootTest
 @Testcontainers
 @ActiveProfiles("test")
-@ContextConfiguration(initializers = Initializer.class)
 public class PubSubIntegrationTests {
   @Container
   private static final PubSubEmulatorContainer pubsubEmulator =
       new PubSubEmulatorContainer(
           DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:317.0.0-emulators"));
 
-  // Pub/Sub emulator topics/subscription must be bootstrapped before Spring Boot starts.
-  // The easiest way to do that is to use an Initializer. This is even before @BeforeAll.
-  static class Initializer
-      implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+  @DynamicPropertySource
+  static void emulatorProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.cloud.gcp.pubsub.emulator-host", pubsubEmulator::getEmulatorEndpoint);
+  }
 
-    @Override
-    public void initialize(ConfigurableApplicationContext ctx) {
-      // First, use PubSubAdmin to bootstrap the topic and subscriptions.
-      ApplicationContextRunner runner =
-          new ApplicationContextRunner()
-              // By default, autoconfiguration will initialize application default credentials.
-              // For testing purposes, don't use any credentials. Bootstrap w/
-              // NoCredentailsProvider.
-              .withBean(
-                  "googleCredentials",
-                  CredentialsProvider.class,
-                  () -> NoCredentialsProvider.create())
-              // Use a couple of autoconfigurations to bootstrap PubSubAdmin bean.
-              .withConfiguration(
-                  AutoConfigurations.of(
-                      GcpContextAutoConfiguration.class,
-                      GcpPubSubAutoConfiguration.class,
-                      GcpPubSubEmulatorAutoConfiguration.class))
-              // Make sure the PubSubAdmin bean is using the emulator host and test project ID
-              .withPropertyValues(
-                  "spring.cloud.gcp.project-id=test-project",
-                  "spring.cloud.gcp.pubsub.emulator-host=" + pubsubEmulator.getEmulatorEndpoint())
-              .run(
-                  runnerCtx -> {
-                    PubSubAdmin admin = runnerCtx.getBean(PubSubAdmin.class);
+  @BeforeAll
+  static void setup() throws Exception {
+    ManagedChannel channel =
+        ManagedChannelBuilder.forTarget("dns:///" + pubsubEmulator.getEmulatorEndpoint())
+            .usePlaintext()
+            .build();
+    TransportChannelProvider channelProvider =
+        FixedTransportChannelProvider.create(GrpcTransportChannel.create(channel));
 
-                    admin.createTopic("test-topic");
-                    admin.createSubscription("test-subscription", "test-topic");
+    TopicAdminClient topicAdminClient =
+        TopicAdminClient.create(
+            TopicAdminSettings.newBuilder()
+                .setCredentialsProvider(NoCredentialsProvider.create())
+                .setTransportChannelProvider(channelProvider)
+                .build());
 
-                    admin.close();
-                  });
+    SubscriptionAdminClient subscriptionAdminClient =
+        SubscriptionAdminClient.create(
+            SubscriptionAdminSettings.newBuilder()
+                .setTransportChannelProvider(channelProvider)
+                .setCredentialsProvider(NoCredentialsProvider.create())
+                .build());
 
-      TestPropertyValues.of(
-              "spring.cloud.gcp.pubsub.emulator-host=" + pubsubEmulator.getEmulatorEndpoint())
-          .applyTo(ctx);
-    }
+    PubSubAdmin admin =
+        new PubSubAdmin(() -> "test-project", topicAdminClient, subscriptionAdminClient);
+
+    admin.createTopic("test-topic");
+    admin.createSubscription("test-subscription", "test-topic");
+
+    admin.close();
+    channel.shutdown();
   }
 
   // By default, autoconfiguration will initialize application default credentials.
@@ -144,9 +140,13 @@ public class PubSubIntegrationTests {
     ListenableFuture<String> future = publisherTemplate.publish("test-topic", "hi!");
 
     List<PubsubMessage> messages = Collections.synchronizedList(new LinkedList<>());
-    PubSubWorker worker = new PubSubWorker("test-subscription", subscriberTemplate, (msg) -> {
-      messages.add(msg);
-    });
+    PubSubWorker worker =
+        new PubSubWorker(
+            "test-subscription",
+            subscriberTemplate,
+            (msg) -> {
+              messages.add(msg);
+            });
     worker.start();
 
     await().until(() -> messages, not(empty()));

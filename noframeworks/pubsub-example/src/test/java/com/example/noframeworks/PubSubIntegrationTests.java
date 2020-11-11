@@ -111,6 +111,7 @@ public class PubSubIntegrationTests {
     // In some cases, you have to wait for shutdown to complete.
     topicAdminClient.shutdown();
     subscriptionAdminClient.shutdown();
+    emulatorChannel.shutdown();
   }
 
   @Test

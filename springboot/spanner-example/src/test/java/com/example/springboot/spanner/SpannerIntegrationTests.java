@@ -18,7 +18,6 @@ package com.example.springboot.spanner;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
-import com.example.springboot.spanner.SpannerIntegrationTests.Initializer;
 import com.google.api.gax.core.CredentialsProvider;
 import com.google.api.gax.core.NoCredentialsProvider;
 import com.google.api.gax.longrunning.OperationFuture;
@@ -41,16 +40,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.cloud.gcp.data.spanner.core.admin.SpannerDatabaseAdminTemplate;
 import org.springframework.cloud.gcp.data.spanner.core.admin.SpannerSchemaUtils;
 import org.springframework.cloud.gcp.data.spanner.core.mapping.SpannerMappingContext;
 import org.springframework.cloud.gcp.data.spanner.core.mapping.SpannerPersistentEntity;
-import org.springframework.context.ApplicationContextInitializer;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.SpannerEmulatorContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -59,7 +56,6 @@ import org.testcontainers.utility.DockerImageName;
 @SpringBootTest
 @Testcontainers
 @ActiveProfiles("test")
-@ContextConfiguration(initializers = Initializer.class)
 public class SpannerIntegrationTests {
   private static final Logger logger = LoggerFactory.getLogger(SpannerIntegrationTests.class);
 
@@ -68,15 +64,10 @@ public class SpannerIntegrationTests {
       new SpannerEmulatorContainer(
           DockerImageName.parse("gcr.io/cloud-spanner-emulator/emulator:1.1.1"));
 
-  static class Initializer
-      implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-    @Override
-    public void initialize(ConfigurableApplicationContext ctx) {
-      TestPropertyValues.of(
-              "spring.cloud.gcp.spanner.emulator-host=" + spannerEmulator.getEmulatorGrpcEndpoint())
-          .applyTo(ctx);
-    }
+  @DynamicPropertySource
+  static void emulatorProperties(DynamicPropertyRegistry registry) {
+    registry.add(
+        "spring.cloud.gcp.spanner.emulator-host", spannerEmulator::getEmulatorGrpcEndpoint);
   }
 
   @TestConfiguration
