@@ -1,0 +1,4 @@
+CREATE TABLE people (
+  id STRING(36) NOT NULL,
+  name  STRING(MAX),
+) PRIMARY KEY(id);
