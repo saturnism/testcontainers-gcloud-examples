@@ -16,8 +16,8 @@
     <module>pubsub-example</module>
     <module>firestore-example</module>
     <module>spanner-example</module>
+    <module>datastore-example</module>
   </modules>
-
 
   <properties>
     <java.version>11</java.version>
