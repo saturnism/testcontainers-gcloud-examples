@@ -25,4 +25,3 @@ jobs:
       run: mvn -B test --file pom.xml
     - name: Run Integration Tests
       run: mvn -B verify --file pom.xml
-      time
