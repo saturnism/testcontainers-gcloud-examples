@@ -10,10 +10,9 @@ on:
     branches: [ main ]
 
 jobs:
+  timeout-minutes: 20
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
     - name: Set up JDK 11
@@ -26,3 +25,4 @@ jobs:
       run: mvn -B test --file pom.xml
     - name: Run Integration Tests
       run: mvn -B verify --file pom.xml
+      time
