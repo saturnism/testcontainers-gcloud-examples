@@ -32,6 +32,7 @@ import com.google.spanner.admin.instance.v1.CreateInstanceMetadata;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import org.junit.Before;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,6 +59,9 @@ import org.testcontainers.utility.DockerImageName;
 @ActiveProfiles("test")
 public class SpannerIntegrationTests {
   private static final Logger logger = LoggerFactory.getLogger(SpannerIntegrationTests.class);
+
+  private static final String PROJECT_ID = "test-project";
+  private static final String INSTANCE_ID = "test-instance";
 
   @Container
   private static final SpannerEmulatorContainer spannerEmulator =
@@ -86,11 +90,11 @@ public class SpannerIntegrationTests {
   @Autowired PersonRepsitory personRepsitory;
   @Autowired SpannerMappingContext spannerMappingContext;
 
-  @BeforeEach
+  @Before
   void setup() throws ExecutionException, InterruptedException {
     // Create an instance
     InstanceAdminClient instanceAdminClient = spanner.getInstanceAdminClient();
-    InstanceId instanceId = InstanceId.of("test-project", "test-instance");
+    InstanceId instanceId = InstanceId.of(PROJECT_ID, INSTANCE_ID);
 
     // InstanceAdminClient already prefixes (unintuitively) the instance ID w/
     // `projects/{projectId}`.
@@ -100,9 +104,9 @@ public class SpannerIntegrationTests {
       // If instance doesn't exist, create a new Spanner instance in the emulator
       OperationFuture<Instance, CreateInstanceMetadata> operationFuture =
           instanceAdminClient.createInstance(
-              InstanceInfo.newBuilder(InstanceId.of("test-project", "test-instance"))
+              InstanceInfo.newBuilder(InstanceId.of(PROJECT_ID, INSTANCE_ID))
                   // make sure to use the special `emulator-config`
-                  .setInstanceConfigId(InstanceConfigId.of("test-project", "emulator-config"))
+                  .setInstanceConfigId(InstanceConfigId.of(PROJECT_ID, "emulator-config"))
                   .build());
       operationFuture.get();
     }
@@ -130,7 +134,4 @@ public class SpannerIntegrationTests {
     personRepsitory.delete(retrieved);
     assertFalse(personRepsitory.existsById(saved.getId()));
   }
-
-  @AfterEach
-  void teardown() {}
 }

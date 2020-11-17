@@ -61,6 +61,8 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 @ActiveProfiles("test")
 public class PubSubIntegrationTests {
+  private static final String PROJECT_ID = "test-project";
+
   @Container
   private static final PubSubEmulatorContainer pubsubEmulator =
       new PubSubEmulatorContainer(
@@ -95,7 +97,7 @@ public class PubSubIntegrationTests {
                 .build());
 
     PubSubAdmin admin =
-        new PubSubAdmin(() -> "test-project", topicAdminClient, subscriptionAdminClient);
+        new PubSubAdmin(() -> PROJECT_ID, topicAdminClient, subscriptionAdminClient);
 
     admin.createTopic("test-topic");
     admin.createSubscription("test-subscription", "test-topic");
