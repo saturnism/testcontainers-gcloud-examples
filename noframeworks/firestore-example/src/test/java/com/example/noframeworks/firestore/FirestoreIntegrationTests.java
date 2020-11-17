@@ -24,6 +24,7 @@ import com.example.noframeworks.pubsub.firestore.PersonDao;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.grpc.InstantiatingGrpcChannelProvider;
 import com.google.auth.Credentials;
+import com.google.cloud.NoCredentials;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.FirestoreOptions;
 import com.google.common.collect.ImmutableMap;
@@ -49,38 +50,6 @@ public class FirestoreIntegrationTests {
       new FirestoreEmulatorContainer(
           DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:317.0.0-emulators"));
 
-  // Unlike any other emulators that can use NoCredentials, Firestore emulator requires a FakeCredentials
-  // with additional fake Authorization header.  The FakeCredentials that's used by Firestore client
-  // library internally is not instantiatable from outside of a Builder instance. So, we have to
-  // create our own FakeCredentials instead...
-  public static class FakeCredentials extends Credentials {
-    private final Map<String, List<String>> HEADERS =
-        ImmutableMap.of("Authorization", Arrays.asList("Bearer owner"));
-
-    @Override
-    public String getAuthenticationType() {
-      throw new IllegalArgumentException("Not supported");
-    }
-
-    @Override
-    public Map<String, List<String>> getRequestMetadata(URI uri) {
-      return HEADERS;
-    }
-
-    @Override
-    public boolean hasRequestMetadata() {
-      return true;
-    }
-
-    @Override
-    public boolean hasRequestMetadataOnly() {
-      return true;
-    }
-
-    @Override
-    public void refresh() {}
-  }
-
   private Firestore firestore;
 
   @BeforeEach
@@ -89,12 +58,8 @@ public class FirestoreIntegrationTests {
     FirestoreOptions options =
         FirestoreOptions.newBuilder()
             .setProjectId(PROJECT_ID)
-            .setCredentialsProvider(FixedCredentialsProvider.create(new FakeCredentials()))
-            .setChannelProvider(
-                InstantiatingGrpcChannelProvider.newBuilder()
-                    .setEndpoint(firestoreEmulator.getEmulatorEndpoint())
-                    .setChannelConfigurator(input -> input.usePlaintext())
-                    .build())
+            .setHost(firestoreEmulator.getEmulatorEndpoint())
+            .setCredentials(NoCredentials.getInstance())
             .build();
 
     this.firestore = options.getService();
