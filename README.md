@@ -1,3 +1,3 @@
-Examples using Testcontainers gcloud module to test applications locally.
+Examples using [Testcontainers gcloud module](https://www.testcontainers.org/modules/gcloud/) to test applications locally.
 
-To run the tests: `mvn verify`
+To run all the tests: `mvn verify`
